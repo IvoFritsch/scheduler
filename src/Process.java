@@ -17,7 +17,6 @@ public class Process implements Comparable<Process>{
     private Boolean finished;
     private int tempoEspera = 0;
     private int currentQuantumCount = 0;
-    private boolean finishedQuantumCicle = false;
 
     public Process(Integer pid, Integer priority, Integer totalTime, Integer currentTime) {
         this.pid = pid;
@@ -75,7 +74,7 @@ public class Process implements Comparable<Process>{
         currentQuantumCount++;
         finished = remainingTime == 0;
     }
-        
+    
     public Boolean isFinished(){
         return finished;
     }

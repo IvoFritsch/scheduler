@@ -1,7 +1,10 @@
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 import javax.swing.table.DefaultTableModel;
 
 /*
@@ -17,13 +20,14 @@ import javax.swing.table.DefaultTableModel;
 public class Scheduler extends Thread{
     
     Set<Process> processes = new TreeSet<>();
+    Set<Process> expiredProcesses = new TreeSet<>();
     private Boolean running = true;
     private volatile Boolean run = true;
     private Integer quantum = 0;
     private Process runningProcess;
-    private Process runningProcessIndex;
     private Integer nextPid = 0;
     private Integer currentTime = 0;
+    private int currentRunningPriority = 0;
     private final Integer TICK_TIME = 500;
     
     private long tempoTotalEspera = 0;
@@ -78,16 +82,41 @@ public class Scheduler extends Thread{
     public void run() {
         while(running){
             try {
+                if(processes.isEmpty() && !expiredProcesses.isEmpty()){
+                    Set<Process> aux = expiredProcesses;
+                    expiredProcesses = processes;
+                    processes = aux;
+                }
                 runningProcess = null;
+                boolean trazDeVolta = false;
                 // Procura o próximo processo da lista que esteja esperando
                 for(Process p:processes){
                     if(!p.isFinished()){
+                        if(currentRunningPriority != 0 && 
+                            p.getPriority() > currentRunningPriority && 
+                            !expiredProcesses.isEmpty()){
+                            trazDeVolta = true;
+                            break;
+                        }
                         runningProcess = p;
+                        currentRunningPriority = p.getPriority();
                         break;
                     }
                 }
+                if(trazDeVolta){
+                    List<Process> aux = new ArrayList<>();
+                    expiredProcesses.forEach(p -> {
+                        processes.add(p);
+                        aux.add(p);
+                    });
+                    aux.forEach(p -> expiredProcesses.remove(p));
+                    continue;
+                }
                 runProccessNP();
-                doTick();
+                if(runningProcess == null){
+                    currentRunningPriority = 0;
+                    doTick();
+                }
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -106,24 +135,23 @@ public class Scheduler extends Thread{
             if(quantum > 0){
                 if(runningProcess.getCurrentQuantumCount() >= quantum){
                     runningProcess.setCurrentQuantumCount(0);
+                    if(!runningProcess.isFinished())
+                        expiredProcesses.add(runningProcess);
+                    break;
                 }
-                runningProcess.
             }
         }
         processes.remove(runningProcess);
         return ticksCount;
     }
     
-    private void nextRunningProccess(){
-        processes.
-    }
-    
     private void doTick() throws Exception{
-        processes.stream().filter((p) -> (!p.getPid().equals(runningProcess.getPid())))
+        processes.stream().filter(p -> (!p.getPid().equals(runningProcess.getPid())))
                 .forEach((p2) -> {
                     p2.incTempoEspera();
                     tempoTotalEspera++;
                 });
+        expiredProcesses.forEach(p -> p.incTempoEspera());
         Thread.sleep(TICK_TIME);
         currentTime++;
         updateCounter();
@@ -135,6 +163,7 @@ public class Scheduler extends Thread{
             SISOPInterface.outputTextArea.setText("IDLE!"
                     + (totalProcessos == 0 ? "" : (" Tempo médio de espera: "+String.format("%.3f",(double)tempoTotalEspera/totalProcessos)+" ticks"))
             );
+            ((DefaultTableModel)SISOPInterface.pList.getModel()).setRowCount(0);
         }else{
             SISOPInterface.outputTextArea
                     .setText("RUNNING PROCESS PID = " 
@@ -152,7 +181,7 @@ public class Scheduler extends Thread{
 
             DefaultTableModel pTable = (DefaultTableModel)SISOPInterface.pList.getModel();
             pTable.setRowCount(0);
-            processes.stream().sorted((p1,p2) -> {
+            Stream.concat(processes.stream(), expiredProcesses.stream()).sorted((p1,p2) -> {
                 return p1.getPid() - p2.getPid();
             }).forEach(p -> {
                 pTable.addRow(new Object[]{
