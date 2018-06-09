@@ -2,6 +2,7 @@
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
@@ -18,9 +19,10 @@ import javax.swing.table.DefaultTableModel;
  * @author gabriel
  */
 public class Scheduler extends Thread{
+    PriorityQueue<Process> processes = new PriorityQueue<>();
     
-    Set<Process> processes = new TreeSet<>();
-    Set<Process> expiredProcesses = new TreeSet<>();
+    
+    PriorityQueue<Process> expiredProcesses = new PriorityQueue<>();
     private Boolean running = true;
     private volatile Boolean run = true;
     private Integer quantum = 0;
@@ -83,7 +85,7 @@ public class Scheduler extends Thread{
         while(running){
             try {
                 if(processes.isEmpty() && !expiredProcesses.isEmpty()){
-                    Set<Process> aux = expiredProcesses;
+                    PriorityQueue<Process> aux = expiredProcesses;
                     expiredProcesses = processes;
                     processes = aux;
                 }
@@ -105,7 +107,7 @@ public class Scheduler extends Thread{
                 }
                 if(trazDeVolta){
                     List<Process> aux = new ArrayList<>();
-                    expiredProcesses.forEach(p -> {
+                    expiredProcesses.stream().forEach(p -> {
                         processes.add(p);
                         aux.add(p);
                     });
